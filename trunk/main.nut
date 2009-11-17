@@ -1,10 +1,12 @@
 import("pathfinder.road", "RoadPathFinder", 3);
 
+
 class rocketAI extends AIController {
 }
 
 function rocketAI::Start()
 {
+	AICompany.SetLoanAmount(AICompany.GetMaxLoanAmount());
 	if (!AICompany.SetName("MyNewAI")) {
 		local i = 2;
 		while (!AICompany.SetName("MyNewAI #" + i)) {
@@ -29,7 +31,7 @@ function rocketAI::Start()
   /* Create an instance of the pathfinder. */
   local pathfinder = RoadPathFinder();
   /* Set the cost for making a turn extreme high. */
-  pathfinder.cost.turn = 1;
+  pathfinder.cost.turn = 500;
   /* Give the source and goal tiles to the pathfinder. */
   pathfinder.InitializePath([AITown.GetLocation(townid_a)], [AITown.GetLocation(townid_b)]);
 
