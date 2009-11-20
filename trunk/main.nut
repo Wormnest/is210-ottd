@@ -198,10 +198,10 @@ function PathFinder::BuildRoad(start, target)
 class TownManager
 {
 	constructor() {
-
 	}
 	function CreateExitRoute(busstop, town1);
 	function BuildBusStop(tile);
+	function BuildDepot(tile);
 	function FindLineBusStopLocation(town, pass_cargo_id, estimate);
 	function EstimateAcceptance(town);
 }
@@ -319,6 +319,49 @@ function TownManager::FindLineBusStopLocation(town, pass_cargo_id, estimate)
 	}	
 }
 
+/*------------------------------------------------------------------*/
+function TownManager::BuildDepot(tile)
+{
+	local found = false;
+	local success = false;
+
+	local adjacentTiles = Tile.GetAdjacentTiles(tile);
+
+	for(local tile2 = adjacentTiles.Begin(); 
+			adjacentTiles.HasNext() && !found; 
+			tile2 = adjacentTiles.Next()) {
+		if(AIRoad.IsRoadTile(tile2) ) {
+			success = true;
+			//local bbpf = PathFinder();
+			local count = 0;
+			while(!success && (count < 100)){
+				local pathlen = AIRoad.BuildRoad(tile2, tile);
+//				AILog.Info("Build busstop pathlen " + pathlen);
+				if (pathlen == 2) {
+					success = true; 
+				} else {
+					count = count + 1;
+				}
+			}
+			local truck = AIRoad.ROADVEHTYPE_BUS; 
+			local adjacent = AIStation.STATION_NEW;
+			if (success) {
+				AITile.DemolishTile(tile);
+				// AITile.DemolishTile(tile2);
+				AIRoad.BuildRoad(tile2, tile);
+				success = AIRoad.BuildRoadDepot(tile, tile2);
+			}
+			found = true;
+		}
+	}
+
+	if (!success) {
+		AILog.Info("Build depot failed "+ AIError.GetLastErrorString());
+//		AISign.BuildSign(tile,"bbs");
+	}
+	return tile;	
+}
+
 
 
 /*------------------------------------------------------------------*/
@@ -349,7 +392,7 @@ function TownManager::BuildBusStop(tile)
 			local adjacent = AIStation.STATION_NEW;
 			if (success) {
 				AITile.DemolishTile(tile);
-				AITile.DemolishTile(tile2);
+				// AITile.DemolishTile(tile2);
 				AIRoad.BuildRoad(tile2, tile);
 				success = AIRoad.BuildRoadStation(tile, tile2, truck, adjacent);
 			}
@@ -361,7 +404,7 @@ function TownManager::BuildBusStop(tile)
 		AILog.Info("Build busstop failed "+ AIError.GetLastErrorString());
 //		AISign.BuildSign(tile,"bbs");
 	}
-	return success;	
+	return tile;	
 }
 
 /*------------------------------------------------------------------*/
@@ -885,6 +928,7 @@ function Line::AddDepot(tile)
  
 class rocketAI extends AIController {
 	passenger_cargo_id = 0;
+	
 }
  
  
@@ -892,6 +936,11 @@ class rocketAI extends AIController {
 function rocketAI::Start()
 {
 	AICompany.SetLoanAmount(AICompany.GetMaxLoanAmount());
+	local bus_model = 0;
+	local build = 0;
+	local depot = 0;
+	local station_a = 0;
+	local station_b = 0;
 	
 	
 	/* Get a list of all towns on the map. */
@@ -902,6 +951,24 @@ function rocketAI::Start()
 	/* Pick the two towns with the highest population. */
 	local townid_a = townlist.Begin();
 	local teller = 1;
+	
+	/* Lage liste over forskjellige busstyper */
+	local engine_list = AIEngineList(AIVehicle.VT_ROAD);
+	
+	engine_list.Valuate(AIEngine.GetRoadType);
+	engine_list.KeepValue(AIRoad.ROADTYPE_ROAD);
+	
+	local balance = AICompany.GetBankBalance(AICompany.COMPANY_SELF);
+	engine_list.Valuate(AIEngine.GetPrice);
+	engine_list.KeepBelowValue(balance);
+
+	engine_list.Valuate(AIEngine.GetCargoType)
+	engine_list.KeepValue(passenger_cargo_id); 
+
+	engine_list.Valuate(AIEngine.GetCapacity)
+	engine_list.KeepTop(1);
+
+	bus_model = engine_list.Begin();
 	
 	
 	/* Bygger vei fra den største byen til de 5 neste byene på by-lista. */
@@ -971,10 +1038,16 @@ function rocketAI::Start()
 		// AILog.Info(TownManager.FindLineBusStopLocation(townid_a, passenger_cargo_id, true));
 		
 		if (teller == 1) {
-		TownManager.BuildBusStop(TownManager.FindLineBusStopLocation(townid_a, passenger_cargo_id, true));
+		station_a = TownManager.BuildBusStop(TownManager.FindLineBusStopLocation(townid_a, passenger_cargo_id, true));
+		depot = TownManager.BuildDepot(TownManager.FindLineBusStopLocation(townid_a, passenger_cargo_id, true));
 		}
 		
-		TownManager.BuildBusStop(TownManager.FindLineBusStopLocation(townid_b, passenger_cargo_id, true));
+		local station_b = TownManager.BuildBusStop(TownManager.FindLineBusStopLocation(townid_b, passenger_cargo_id, true));
+		local build = AIVehicle.BuildVehicle(depot, bus_model);
+		AIOrder.AppendOrder(build, depot, AIOrder.AIOF_SERVICE_IF_NEEDED);
+		AIOrder.AppendOrder(build, station_a, AIOrder.AIOF_NONE); 
+		AIOrder.AppendOrder(build, station_b, AIOrder.AIOF_NONE);
+		AIVehicle.StartStopVehicle(build);
 		
 		teller++;
 	}
