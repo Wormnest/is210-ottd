@@ -260,7 +260,10 @@ class rocketAI extends AIController {
 	passenger_cargo_id = 0;
 }
 
-/*------------------------------------------------------------------*/
+/*------------------------------------------------------------------|
+|	ManageLoan is used to pay back money when finished building		|
+-------------------------------------------------------------------*/
+
 function rocketAI::ManageLoan()
 {
 	local balance = AICompany.GetBankBalance(AICompany.COMPANY_SELF);
@@ -306,7 +309,7 @@ function rocketAI::Start()
 	local townid_a = townlist.Begin();
 	local teller = 1;
 	
-	/* Makes a list of different bus types */
+	/* Makes a list of different bus types so the AI knows which bus to build */
 	local engine_list = AIEngineList(AIVehicle.VT_ROAD);
 	
 	engine_list.Valuate(AIEngine.GetRoadType);
@@ -325,15 +328,18 @@ function rocketAI::Start()
 	bus_model = engine_list.Begin();
 	
 	
-	/* Builds road from the largest city to the next 5 cities on the list. 
-		makes a depot in the largest cities and a bus stop in every city.
-		Builds 5 buses to transport passengers to and from the largest city to each of the 5 other cities */
+	/*---------------------------------------------------------------------------------|
+	|	Builds road from the largest city to the next 5 cities on the list.			   |
+	|	Makes a depot in the largest cities and a bus stop in every city.			   |
+	|	Builds 5 buses to transport passengers to and from the largest city 		   |
+	|	to each of the 5 other cities												   |
+	----------------------------------------------------------------------------------*/
 	
 	for( local k = 1; k<=5; k++ ) {
 		local townid_b = townlist.Next();
 		/* Print the names of the towns we'll try to connect. */
 		AILog.Info("Going to connect " + AITown.GetName(townid_a) + " to " + AITown.GetName(townid_b));
-		/* Tell OpenTTD we want to build normal road (no tram tracks). */
+		/* Tell OpenTTD we want to build normal road. */
 		AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
 		/* Create an instance of the pathfinder. */
 		local pathfinder = RoadPathFinder();
@@ -388,17 +394,17 @@ function rocketAI::Start()
 			path = par;
 		}
 		AILog.Info(AITown.GetName(townid_a) + " is connected to " + AITown.GetName(townid_b));
-		// AILog.Info(townid_a);
-		// AILog.Info(AITown.GetLocation(townid_a));
-		// AILog.Info(TownManager.FindLineBusStopLocation(townid_a, passenger_cargo_id, true));
 		
 		if (teller == 1) {
+		/* In the largest city we make both a bus depot and a bus stop */
 		station_a = TownManager.BuildBusStop(TownManager.FindLineBusStopLocation(townid_a, passenger_cargo_id, true));
 		depot = TownManager.BuildDepot(TownManager.FindLineBusStopLocation(townid_a, passenger_cargo_id, true));
 		}
 		
+		/* For every other city we create a bus stop */
 		local station_b = TownManager.BuildBusStop(TownManager.FindLineBusStopLocation(townid_b, passenger_cargo_id, true));
 		
+		/* We create 5 buses for every bus line */
 		for (local x = 1; x<=5; x++ ) {
 			local build = AIVehicle.BuildVehicle(depot, bus_model);
 			AIOrder.AppendOrder(build, depot, AIOrder.AIOF_SERVICE_IF_NEEDED);
@@ -409,7 +415,7 @@ function rocketAI::Start()
 		
 		teller++;
 	}
-	AILog.Info("Ferdig med å lage byer, betaler tilbake lån");
+	AILog.Info("Finished making roads, depot, bus stops and buses. Will pay back loan.");
 	ManageLoan();
 }
 
