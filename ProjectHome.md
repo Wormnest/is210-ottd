@@ -1,0 +1,1 @@
+Small school project to develop some open source software
